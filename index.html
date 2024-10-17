@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sudoku Game</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                flex-direction: column;
+                height: 100vh;
+                margin: 0;
+                background-color: #f5f5f5;
+            }
+
+            #sudoku-board {
+                display: grid;
+                grid-template-columns: repeat(9, auto);
+                grid-template-rows: repeat(9, auto);
+                gap: 0px;
+                border: 1px solid black;
+            }
+
+            .cell {
+                width: 38px;
+                height: 38px;
+                text-align: center;
+                border: 1px solid #ccc;
+                font-size: 20px;
+                background-color: #ffffff;
+                outline: none;
+            }
+
+            .cellH0 {
+                border-left: 1px solid black;
+            }
+
+            .cellH2 {
+                border-right: 1px solid black;
+            }
+
+            .cellV0 {
+                border-top: 1px solid black;
+            }
+
+            .cellV2 {
+                border-bottom: 1px solid black;
+            }
+
+            .cellInput:focus {
+                border-color: red;
+                z-index: 9999;
+            }
+
+            .cell.readonly {
+                background-color: #ffffff;
+            }
+
+            .highlight-readonly {
+                background-color: #ffffcc;
+            }
+
+            .actions {
+                margin-bottom: 20px;
+                text-align: center;
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 16px;
+                margin: 0 5px;
+            }
+
+            .about {
+                max-width: 600px;
+                text-align: center;
+            }
+
+            .about h2 {
+                margin-bottom: 10px;
+            }
+
+            .about p {
+                line-height: 1.6;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div style="padding: 10px">
+            <div id="sudoku-board"></div>
+        </div>
+        <div class="actions">
+            <button id="generateButton" onclick="generateNewBoard()">
+                Generate Board
+            </button>
+            <button id="checkButton" onclick="checkSudoku()">Check</button>
+            <button id="resetButton" onclick="resetSudoku()">Reset</button>
+        </div>
+        <div class="about">
+            <h2 id="aboutTitle">About Sudoku</h2>
+            <p id="aboutText">
+                Sudoku is a logic-based number placement puzzle. The objective
+                is to fill a 9×9 grid with digits so that each column, each row,
+                and each of the nine 3×3 subgrids that compose the grid (also
+                called "boxes", "blocks", or "regions") contain all of the
+                digits from 1 to 9. The puzzle setter provides a partially
+                completed grid, which for a well-posed puzzle has a single
+                solution.
+            </p>
+        </div>
+
+        <script>
+            let sudokuBoard = [];
+            let solutionBoard = [];
+
+            // Function to close the tab (works only if the tab was opened via script)
+            function closeTab() {
+                window.open("", "_self", ""); // Required for closing the current tab
+                window.close(); // Attempt to close the tab
+            }
+
+            // Function to disable the board after game completion
+            function disableBoard() {
+                document.getElementById("sudoku-board").style.pointerEvents =
+                    "none"; // Disable interactions
+            }
+
+            // Modified checkSudoku() to call closeTab() when the game is complete
+            function checkSudoku() {
+                const cells = document.querySelectorAll(".cell");
+                let isComplete = true;
+                let isCorrect = true;
+
+                cells.forEach((cell, index) => {
+                    const row = Math.floor(index / 9);
+                    const col = index % 9;
+
+                    if (cell.value == "") {
+                        isComplete = false;
+                    } else if (cell.value != solutionBoard[row][col]) {
+                        isCorrect = false;
+                    }
+                });
+
+                if (isCorrect && isComplete) {
+                    alert("축하합니다! 스도쿠를 풀었습니다.");
+                    closeTab(); // Call to close the tab after solving the puzzle (if allowed)
+                    // Optionally, call disableBoard(); if closing tab isn't working
+                } else if (isCorrect && !isComplete) {
+                    alert("지금까지는 잘 됐어요! 계속하세요.");
+                } else {
+                    alert("스도쿠 보드에 틀린 부분이 있습니다.");
+                }
+            }
+
+            // Generates a new Sudoku board
+            function generateNewBoard() {
+                const generatedBoards = generateSudoku();
+                sudokuBoard = generatedBoards[0];
+                solutionBoard = generatedBoards[1];
+                createBoard(sudokuBoard);
+            }
+
+            // Create the board based on the generated Sudoku
+            function createBoard(board) {
+                const boardElement = document.getElementById("sudoku-board");
+                boardElement.innerHTML = "";
+                for (let i = 0; i < 9; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const cell = document.createElement("input");
+                        cell.type = "text";
+                        cell.maxLength = 1;
+                        cell.className = [
+                            "cell",
+                            "cellV" + (i % 3),
+                            "cellH" + (j % 3),
+                        ].join(" ");
+                        cell.dataset.row = i;
+                        cell.dataset.col = j;
+                        if (board[i][j] !== 0) {
+                            cell.value = board[i][j];
+                            cell.readOnly = true;
+                            cell.classList.add("readonly");
+                        } else {
+                            cell.classList.add("cellInput");
+                        }
+                        boardElement.appendChild(cell);
+                    }
+                }
+            }
+
+            // Resets the Sudoku board to the original state
+            function resetSudoku() {
+                createBoard(sudokuBoard);
+            }
+
+            // Generate a Sudoku board and solution
+            function generateSudoku() {
+                const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+                fillDiagonal(board);
+                fillRemaining(board, 0, 3);
+                const solution = board.map((row) => row.slice());
+                removeNumbers(board);
+                return [board, solution];
+            }
+
+            // Fill diagonal 3x3 boxes
+            function fillDiagonal(board) {
+                for (let i = 0; i < 9; i += 3) {
+                    fillBox(board, i, i);
+                }
+            }
+
+            // Fill a 3x3 box starting from (row, col)
+            function fillBox(board, row, col) {
+                let num;
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        do {
+                            num = Math.floor(Math.random() * 9) + 1;
+                        } while (usedInBox(board, row, col, num));
+                        board[row + i][col + j] = num;
+                    }
+                }
+            }
+
+            // Check if number is used in the 3x3 box
+            function usedInBox(board, rowStart, colStart, num) {
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        if (board[rowStart + i][colStart + j] === num) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            // Fill the remaining cells
+            function fillRemaining(board, i, j) {
+                if (j >= 9 && i < 8) {
+                    i++;
+                    j = 0;
+                }
+                if (i >= 9 && j >= 9) {
+                    return true;
+                }
+                if (i < 3) {
+                    if (j < 3) {
+                        j = 3;
+                    }
+                } else if (i < 6) {
+                    if (j === Math.floor(i / 3) * 3) {
+                        j += 3;
+                    }
+                } else {
+                    if (j === 6) {
+                        i++;
+                        j = 0;
+                        if (i >= 9) {
+                            return true;
+                        }
+                    }
+                }
+                for (let num = 1; num <= 9; num++) {
+                    if (isSafe(board, i, j, num)) {
+                        board[i][j] = num;
+                        if (fillRemaining(board, i, j + 1)) {
+                            return true;
+                        }
+                        board[i][j] = 0;
+                    }
+                }
+                return false;
+            }
+
+            // Check if it's safe to place the number in the cell
+            function isSafe(board, i, j, num) {
+                return (
+                    !usedInRow(board, i, num) &&
+                    !usedInCol(board, j, num) &&
+                    !usedInBox(board, i - (i % 3), j - (j % 3), num)
+                );
+            }
+
+            function usedInRow(board, i, num) {
+                for (let j = 0; j < 9; j++) {
+                    if (board[i][j] === num) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function usedInCol(board, j, num) {
+                for (let i = 0; i < 9; i++) {
+                    if (board[i][j] === num) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function removeNumbers(board) {
+                let count = 20;
+                while (count !== 0) {
+                    const cellId = Math.floor(Math.random() * 81);
+                    const i = Math.floor(cellId / 9);
+                    const j = cellId % 9;
+                    if (board[i][j] !== 0) {
+                        board[i][j] = 0;
+                        count--;
+                    }
+                }
+            }
+
+            // Language detection
+            const userLang = navigator.language || navigator.userLanguage;
+
+            const translations = {
+                en: {
+                    generateButton: "Generate Board",
+                    checkButton: "Check",
+                    resetButton: "Reset",
+                    aboutTitle: "About Sudoku",
+                    aboutText:
+                        "Sudoku is a logic-based number placement puzzle. The objective is to fill a 9×9 grid with digits so that each column, each row, and each of the nine 3×3 subgrids that compose the grid (also called 'boxes', 'blocks', or 'regions') contain all of the digits from 1 to 9. The puzzle setter provides a partially completed grid, which for a well-posed puzzle has a single solution.",
+                },
+                ko: {
+                    generateButton: "보드 생성",
+                    checkButton: "확인",
+                    resetButton: "재설정",
+                    aboutTitle: "스도쿠 소개",
+                    aboutText:
+                        "스도쿠는 논리 기반 숫자 배치 퍼즐입니다. 목표는 9×9 그리드를 채워 각 열, 각 행 및 그리드를 구성하는 9개의 3×3 부분 그리드(일명 '상자', '블록' 또는 '지역')에 1에서 9까지의 모든 숫자가 포함되도록 하는 것입니다. 퍼즐 작성자는 부분적으로 완료된 그리드를 제공하며, 잘 만들어진 퍼즐은 단일 솔루션을 가지고 있습니다.",
+                },
+            };
+
+            function applyTranslations(lang) {
+                const translation = translations[lang] || translations["en"];
+                document.getElementById("generateButton").innerText =
+                    translation.generateButton;
+                document.getElementById("checkButton").innerText =
+                    translation.checkButton;
+                document.getElementById("resetButton").innerText =
+                    translation.resetButton;
+                document.getElementById("aboutTitle").innerText =
+                    translation.aboutTitle;
+                document.getElementById("aboutText").innerText =
+                    translation.aboutText;
+            }
+
+            // Apply translations based on detected language
+            if (userLang.startsWith("ko")) {
+                applyTranslations("ko");
+            } else {
+                applyTranslations("en");
+            }
+
+            document.addEventListener("DOMContentLoaded", () => {
+                generateNewBoard();
+            });
+        </script>
+    </body>
+</html>
